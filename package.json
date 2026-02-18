@@ -5,13 +5,14 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "prisma generate && tsc",
-    "start": "node dist/index.js",
+    "start": "prisma db push && node dist/index.js",
     "dev": "prisma generate && ts-node-dev src/index.ts",
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",
+    "@prisma/config": "^7.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
