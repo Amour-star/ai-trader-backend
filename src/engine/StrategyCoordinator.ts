@@ -13,7 +13,10 @@ export class StrategyCoordinator {
   decide(input: EvalInput) {
     const bullish = input.ema9 > input.ema21 && input.rsi > 52;
     const bearish = input.ema9 < input.ema21 && input.rsi < 48;
-    const baseConfidence = Math.min(0.95, Math.abs(input.ema9 - input.ema21) / input.price + Math.abs(input.rsi - 50) / 100 + 0.4);
+    const baseConfidence = Math.min(
+      0.95,
+      Math.abs(input.ema9 - input.ema21) / Math.max(input.price, 1) + Math.abs(input.rsi - 50) / 100 + 0.4,
+    );
     const confidence = input.testSignalMode ? Math.max(baseConfidence, 0.45) : baseConfidence;
     const threshold = input.testSignalMode ? Math.min(input.threshold, 0.45) : input.threshold;
 
