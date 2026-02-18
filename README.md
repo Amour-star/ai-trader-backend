@@ -46,3 +46,8 @@
 - `CONFIDENCE_THRESHOLD=0.6`
 - `SYMBOL=ETHUSDC`
 - `CORS_ORIGIN=*`
+
+## Railway troubleshooting (build detection)
+- Ensure Railway **Root Directory** is repo root (`/`), not `src/`.
+- This repo includes `nixpacks.toml` and `start.sh` as fallbacks so Railpack can still build/start deterministically.
+- If Railway still reports only `src/` analyzed, update the service root directory setting and redeploy.
