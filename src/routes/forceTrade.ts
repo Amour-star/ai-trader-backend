@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { DecisionType } from '@prisma/client';
+import { Decision } from '../types';
 import { BinanceMarketData } from '../services/BinanceMarketData';
 import { TradeStore } from '../services/TradeStore';
 import { ExecutionEngine } from '../engine/ExecutionEngine';
@@ -36,7 +36,7 @@ export const forceTradeRoute = (
     return;
   }
 
-  const sideEnum = side === 'BUY' ? DecisionType.BUY : DecisionType.SELL;
+  const sideEnum = side === 'BUY' ? Decision.BUY : Decision.SELL;
   const resolvedTp = tpPrice
     ?? (tpPct != null ? (side === 'BUY' ? entryPrice * (1 + tpPct / 100) : entryPrice * (1 - tpPct / 100)) : undefined);
   const resolvedSl = slPrice

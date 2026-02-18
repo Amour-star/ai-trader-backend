@@ -1,4 +1,4 @@
-import { DecisionType } from '@prisma/client';
+import { Decision, DecisionType } from '../types';
 import { TradeStore } from '../services/TradeStore';
 import { PositionStore } from '../services/PositionStore';
 import { Logger } from '../utils/logger';
@@ -12,7 +12,7 @@ export class ExecutionEngine {
 
   async openPaperTrade(input: {
     symbol: string;
-    side: DecisionType.BUY | DecisionType.SELL;
+    side: Exclude<DecisionType, "HOLD">;
     qty: number;
     entryPrice: number;
     tpPrice?: number;
@@ -56,7 +56,7 @@ export class ExecutionEngine {
     const relevant = await this.tradeStore.getOpenTrades(symbol);
     for (const trade of relevant) {
       if (trade.tpPrice != null) {
-        const hitTp = trade.side === DecisionType.BUY ? currentPrice >= trade.tpPrice : currentPrice <= trade.tpPrice;
+        const hitTp = trade.side === Decision.BUY ? currentPrice >= trade.tpPrice : currentPrice <= trade.tpPrice;
         if (hitTp) {
           this.logger.info('[TP HIT] Closing trade', { tradeId: trade.id, currentPrice, tpPrice: trade.tpPrice });
           await this.tradeStore.closeTrade(trade.id, currentPrice, 'TP');
@@ -66,7 +66,7 @@ export class ExecutionEngine {
         }
       }
       if (trade.slPrice != null) {
-        const hitSl = trade.side === DecisionType.BUY ? currentPrice <= trade.slPrice : currentPrice >= trade.slPrice;
+        const hitSl = trade.side === Decision.BUY ? currentPrice <= trade.slPrice : currentPrice >= trade.slPrice;
         if (hitSl) {
           this.logger.info('[SL HIT] Closing trade', { tradeId: trade.id, currentPrice, slPrice: trade.slPrice });
           await this.tradeStore.closeTrade(trade.id, currentPrice, 'SL');

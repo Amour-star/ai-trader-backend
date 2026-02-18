@@ -1,4 +1,5 @@
-import { DecisionType, PrismaClient, TradeStatus } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { Decision, DecisionType, TradeStatusValue } from '../types';
 
 export class TradeStore {
   constructor(private prisma: PrismaClient) {}
@@ -8,7 +9,7 @@ export class TradeStore {
     timeframe: string;
     decision: DecisionType;
     confidence: number;
-    reasons: unknown;
+    reasons: Prisma.InputJsonValue;
     featuresHash: string;
     modelVersion: string;
   }) {
@@ -38,12 +39,12 @@ export class TradeStore {
   async closeTrade(tradeId: string, exitPrice: number, reason: 'TP' | 'SL' | 'MANUAL' | 'SIGNAL') {
     const trade = await this.prisma.trade.findUnique({ where: { id: tradeId } });
     if (!trade) throw new Error(`Trade ${tradeId} not found`);
-    if (trade.status !== TradeStatus.OPEN) return trade;
+    if (trade.status !== (TradeStatusValue.OPEN as any)) return trade;
 
     const fees = trade.fee;
     const slippageCost = trade.slippage;
 
-    const pnlAbs = trade.side === DecisionType.BUY
+    const pnlAbs = trade.side === Decision.BUY
       ? (exitPrice - trade.entryPrice) * trade.qty - fees - slippageCost
       : (trade.entryPrice - exitPrice) * trade.qty - fees - slippageCost;
 
@@ -57,7 +58,7 @@ export class TradeStore {
         pnlAbs,
         pnlPct,
         closeReason: reason,
-        status: TradeStatus.CLOSED,
+        status: TradeStatusValue.CLOSED as any,
       },
     });
   }
@@ -75,7 +76,7 @@ export class TradeStore {
   async getOpenTrades(symbol?: string) {
     return this.prisma.trade.findMany({
       where: {
-        status: TradeStatus.OPEN,
+        status: TradeStatusValue.OPEN as any,
         ...(symbol ? { symbol } : {}),
       },
       orderBy: { tsOpen: 'asc' },

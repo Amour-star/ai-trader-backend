@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { DecisionType } from '@prisma/client';
+import { Decision, DecisionType } from '../types';
 import { BinanceMarketData } from '../services/BinanceMarketData';
 import { TradeStore } from '../services/TradeStore';
 import { StrategyCoordinator } from './StrategyCoordinator';
@@ -99,7 +99,7 @@ export class EngineRunner {
 
       this.metrics.lastHeartbeatTs = new Date().toISOString();
       this.metrics.evaluations += 1;
-      if (decision.decision !== DecisionType.HOLD) this.metrics.signals += 1;
+      if (decision.decision !== Decision.HOLD) this.metrics.signals += 1;
 
       this.logger.info('[HEARTBEAT] cycle complete', {
         ts: this.metrics.lastHeartbeatTs,
@@ -114,11 +114,11 @@ export class EngineRunner {
 
       await this.execution.monitorAndClose(this.symbol, price);
 
-      if (decision.decision !== DecisionType.HOLD && (await this.risk.canOpen(this.symbol))) {
+      if (decision.decision !== Decision.HOLD && (await this.risk.canOpen(this.symbol))) {
         const qty = Number((50 / price).toFixed(6));
         await this.execution.openPaperTrade({
           symbol: this.symbol,
-          side: decision.decision as DecisionType.BUY | DecisionType.SELL,
+          side: decision.decision as Exclude<DecisionType, "HOLD">,
           qty,
           entryPrice: price,
           decisionId: record.id,
