@@ -38,6 +38,7 @@
 2. Create Railway service from repo.
 3. Set env vars in Railway.
 4. Railway runs `npm run start` via `railway.json`.
+5. Run migrations in Railway once (e.g. `npx prisma migrate deploy`).
 
 ## Example Railway env setup
 - `DATABASE_URL=postgresql://...neon...`
@@ -51,3 +52,8 @@
 - Ensure Railway **Root Directory** is repo root (`/`), not `src/`.
 - This repo includes `nixpacks.toml` and `start.sh` as fallbacks so Railpack can still build/start deterministically.
 - If Railway still reports only `src/` analyzed, update the service root directory setting and redeploy.
+
+
+## Prisma note
+- Prisma client is generated during install/build (`postinstall` and `build` scripts).
+- Ensure `DATABASE_URL` is present so Prisma can target Neon/Postgres correctly.
