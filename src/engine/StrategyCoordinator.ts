@@ -1,4 +1,4 @@
-import { DecisionType } from '@prisma/client';
+import { Decision } from '../types';
 
 type EvalInput = {
   price: number;
@@ -13,16 +13,19 @@ export class StrategyCoordinator {
   decide(input: EvalInput) {
     const bullish = input.ema9 > input.ema21 && input.rsi > 52;
     const bearish = input.ema9 < input.ema21 && input.rsi < 48;
-    const baseConfidence = Math.min(0.95, Math.abs(input.ema9 - input.ema21) / input.price + Math.abs(input.rsi - 50) / 100 + 0.4);
+    const baseConfidence = Math.min(
+      0.95,
+      Math.abs(input.ema9 - input.ema21) / Math.max(input.price, 1) + Math.abs(input.rsi - 50) / 100 + 0.4,
+    );
     const confidence = input.testSignalMode ? Math.max(baseConfidence, 0.45) : baseConfidence;
     const threshold = input.testSignalMode ? Math.min(input.threshold, 0.45) : input.threshold;
 
     if (bullish && confidence >= threshold) {
-      return { decision: DecisionType.BUY, confidence, reasons: ['EMA9_GT_EMA21', 'RSI_STRENGTH'] };
+      return { decision: Decision.BUY, confidence, reasons: ['EMA9_GT_EMA21', 'RSI_STRENGTH'] };
     }
     if (bearish && confidence >= threshold) {
-      return { decision: DecisionType.SELL, confidence, reasons: ['EMA9_LT_EMA21', 'RSI_WEAKNESS'] };
+      return { decision: Decision.SELL, confidence, reasons: ['EMA9_LT_EMA21', 'RSI_WEAKNESS'] };
     }
-    return { decision: DecisionType.HOLD, confidence, reasons: ['NO_EDGE'] };
+    return { decision: Decision.HOLD, confidence, reasons: ['NO_EDGE'] };
   }
 }

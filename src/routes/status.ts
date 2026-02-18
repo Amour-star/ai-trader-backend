@@ -1,16 +1,18 @@
+import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
-import { prisma } from '../services/Db';
-import { EngineMetrics } from '../engine/EngineRunner';
+import { EngineRunner } from '../engine/EngineRunner';
 
-export const statusRoute = (metrics: EngineMetrics, symbol: string) => async (_req: Request, res: Response) => {
+export const statusRoute = (prisma: PrismaClient, runner: EngineRunner, symbol: string) => async (_req: Request, res: Response) => {
   const state = await prisma.engineState.upsert({
     where: { id: 'singleton' },
     update: {},
     create: { id: 'singleton' },
   });
 
+  const metrics = runner.getMetrics();
+
   res.json({
-    running: true,
+    running: metrics.isRunning,
     lastHeartbeatTs: metrics.lastHeartbeatTs,
     selectedSymbol: symbol,
     evaluationsCount: metrics.evaluations,
