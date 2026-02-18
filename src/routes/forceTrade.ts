@@ -37,8 +37,10 @@ export const forceTradeRoute = (
   }
 
   const sideEnum = side === 'BUY' ? DecisionType.BUY : DecisionType.SELL;
-  const resolvedTp = tpPrice ?? (tpPct != null ? (side === 'BUY' ? entryPrice * (1 + tpPct / 100) : entryPrice * (1 - tpPct / 100)) : undefined);
-  const resolvedSl = slPrice ?? (slPct != null ? (side === 'BUY' ? entryPrice * (1 - slPct / 100) : entryPrice * (1 + slPct / 100)) : undefined);
+  const resolvedTp = tpPrice
+    ?? (tpPct != null ? (side === 'BUY' ? entryPrice * (1 + tpPct / 100) : entryPrice * (1 - tpPct / 100)) : undefined);
+  const resolvedSl = slPrice
+    ?? (slPct != null ? (side === 'BUY' ? entryPrice * (1 - slPct / 100) : entryPrice * (1 + slPct / 100)) : undefined);
 
   const decision = await tradeStore.recordDecision({
     symbol,
