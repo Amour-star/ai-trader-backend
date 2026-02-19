@@ -1,21 +1,24 @@
 import crypto from 'node:crypto';
-import { DecisionType } from '@prisma/client';
+import { Decision, DecisionType } from '../types';
 import { BinanceMarketData } from '../services/BinanceMarketData';
 import { TradeStore } from '../services/TradeStore';
 import { StrategyCoordinator } from './StrategyCoordinator';
 import { ExecutionEngine } from './ExecutionEngine';
 import { RiskGuards } from './RiskGuards';
+import { Logger } from '../utils/logger';
 
 export type EngineMetrics = {
   lastHeartbeatTs: string | null;
   evaluations: number;
   signals: number;
   tradesExecuted: number;
+  isRunning: boolean;
 };
 
 export class EngineRunner {
   private timer: NodeJS.Timeout | null = null;
   private priceHistory: number[] = [];
+  private isTickInFlight = false;
 
   constructor(
     private symbol: string,
@@ -27,22 +30,45 @@ export class EngineRunner {
     private risk: RiskGuards,
     private metrics: EngineMetrics,
     private isTestSignalMode: () => boolean,
+    private logger: Logger,
   ) {}
 
   start() {
-    this.timer = setInterval(() => void this.tick(), 60_000);
+    if (this.timer) {
+      this.logger.warn('Engine start ignored; already running');
+      return;
+    }
+
+    this.metrics.isRunning = true;
+    this.timer = setInterval(() => {
+      void this.tick();
+    }, 60_000);
     void this.tick();
+    this.logger.info('Engine started');
   }
 
   stop() {
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.metrics.isRunning = false;
+    this.logger.info('Engine stopped');
   }
 
   async tick() {
+    if (this.isTickInFlight) {
+      this.logger.warn('Skipping tick because previous tick is still running');
+      return;
+    }
+
+    this.isTickInFlight = true;
+
     try {
       const price = await this.data.getTickerPrice(this.symbol);
       this.priceHistory.push(price);
       if (this.priceHistory.length > 30) this.priceHistory.shift();
+
       const ema9 = this.calcEma(9);
       const ema21 = this.calcEma(21);
       const rsi = this.calcRsi(14);
@@ -56,7 +82,11 @@ export class EngineRunner {
         testSignalMode: this.isTestSignalMode(),
       });
 
-      const featuresHash = crypto.createHash('sha1').update(`${price}|${ema9}|${ema21}|${rsi}`).digest('hex');
+      const featuresHash = crypto
+        .createHash('sha1')
+        .update(`${price}|${ema9}|${ema21}|${rsi}`)
+        .digest('hex');
+
       const record = await this.tradeStore.recordDecision({
         symbol: this.symbol,
         timeframe: '1m',
@@ -69,17 +99,26 @@ export class EngineRunner {
 
       this.metrics.lastHeartbeatTs = new Date().toISOString();
       this.metrics.evaluations += 1;
-      if (decision.decision !== DecisionType.HOLD) this.metrics.signals += 1;
+      if (decision.decision !== Decision.HOLD) this.metrics.signals += 1;
 
-      console.log(`[HEARTBEAT] ${this.metrics.lastHeartbeatTs} ${this.symbol} ${price.toFixed(4)} ${ema9.toFixed(4)} ${ema21.toFixed(4)} ${rsi.toFixed(2)} ${decision.decision} ${decision.confidence.toFixed(3)}`);
+      this.logger.info('[HEARTBEAT] cycle complete', {
+        ts: this.metrics.lastHeartbeatTs,
+        symbol: this.symbol,
+        price,
+        ema9,
+        ema21,
+        rsi,
+        decision: decision.decision,
+        confidence: decision.confidence,
+      });
 
       await this.execution.monitorAndClose(this.symbol, price);
 
-      if (decision.decision !== DecisionType.HOLD && await this.risk.canOpen(this.symbol)) {
+      if (decision.decision !== Decision.HOLD && (await this.risk.canOpen(this.symbol))) {
         const qty = Number((50 / price).toFixed(6));
         await this.execution.openPaperTrade({
           symbol: this.symbol,
-          side: decision.decision as DecisionType.BUY | DecisionType.SELL,
+          side: decision.decision as Exclude<DecisionType, "HOLD">,
           qty,
           entryPrice: price,
           decisionId: record.id,
@@ -87,8 +126,16 @@ export class EngineRunner {
         this.metrics.tradesExecuted += 1;
       }
     } catch (error) {
-      console.error('[ENGINE_ERROR]', error);
+      this.logger.error('[ENGINE_ERROR] Tick failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      this.isTickInFlight = false;
     }
+  }
+
+  getMetrics() {
+    return { ...this.metrics };
   }
 
   private calcEma(period: number) {
@@ -113,6 +160,6 @@ export class EngineRunner {
     }
     if (losses === 0) return 100;
     const rs = gains / losses;
-    return 100 - (100 / (1 + rs));
+    return 100 - 100 / (1 + rs);
   }
 }
