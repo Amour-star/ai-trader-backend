@@ -1,30 +1,32 @@
-export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
+export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 export class Logger {
-  constructor(private module: string) {}
+  constructor(private context: string) {}
 
-  private write(level: LogLevel, message: string, meta?: unknown) {
-    const line = `[${level}] [${this.module}] ${message}`;
-    if (meta !== undefined) {
-      process.stdout.write(`${line} ${JSON.stringify(meta)}\n`);
-      return;
-    }
-    process.stdout.write(`${line}\n`);
+  private write(level: LogLevel, message: string, metadata?: unknown) {
+    const payload = {
+      level,
+      context: this.context,
+      message,
+      metadata,
+      timestamp: new Date().toISOString(),
+    };
+    process.stdout.write(`${JSON.stringify(payload)}\n`);
   }
 
-  info(message: string, meta?: unknown) {
-    this.write('INFO', message, meta);
+  info(message: string, metadata?: unknown) {
+    this.write('info', message, metadata);
   }
 
-  warn(message: string, meta?: unknown) {
-    this.write('WARN', message, meta);
+  warn(message: string, metadata?: unknown) {
+    this.write('warn', message, metadata);
   }
 
-  error(message: string, meta?: unknown) {
-    this.write('ERROR', message, meta);
+  error(message: string, metadata?: unknown) {
+    this.write('error', message, metadata);
   }
 
-  debug(message: string, meta?: unknown) {
-    this.write('DEBUG', message, meta);
+  debug(message: string, metadata?: unknown) {
+    this.write('debug', message, metadata);
   }
 }

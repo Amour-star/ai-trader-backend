@@ -2,19 +2,36 @@ import { loadConfig } from './config';
 import { createServer } from './server';
 import { Logger } from './utils/logger';
 
-const logger = new Logger('Bootstrap');
+const logger = new Logger('bootstrap');
 
 async function bootstrap() {
-  try {
-    const config = loadConfig();
-    const { start } = createServer(config);
-    start();
-  } catch (error) {
-    logger.error('Fatal startup error', {
-      error: error instanceof Error ? error.message : String(error),
+  const config = loadConfig();
+  const appServer = createServer(config);
+
+  process.on('uncaughtException', (error) => {
+    logger.error('uncaughtException', { error: error.message, stack: error.stack });
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', {
+      reason: reason instanceof Error ? reason.message : String(reason),
     });
-    process.exit(1);
-  }
+  });
+
+  process.on('SIGINT', () => {
+    void appServer.shutdown('SIGINT').finally(() => process.exit(0));
+  });
+
+  process.on('SIGTERM', () => {
+    void appServer.shutdown('SIGTERM').finally(() => process.exit(0));
+  });
+
+  await appServer.start();
 }
 
-void bootstrap();
+void bootstrap().catch((error) => {
+  logger.error('Fatal startup error', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
+});

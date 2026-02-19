@@ -39,16 +39,14 @@ export function loadConfig(): AppConfig {
     throw new Error('ENGINE_MODE must be one of: paper, disabled');
   }
 
-  const config: AppConfig = {
+  return {
     databaseUrl: withNeonSsl(required('DATABASE_URL')),
-    port: parseNumber('PORT', required('PORT')),
+    port: Number(process.env.PORT) || 8080,
     engineMode: modeRaw,
     confidenceThreshold: parseNumber('CONFIDENCE_THRESHOLD', required('CONFIDENCE_THRESHOLD')),
     symbol: required('SYMBOL').toUpperCase(),
-    corsOrigin: process.env.CORS_ORIGIN ?? '*',
+    corsOrigin: process.env.CORS_ORIGIN || '*',
   };
-
-  return config;
 }
 
 export function sanitizedConfig(config: AppConfig) {
