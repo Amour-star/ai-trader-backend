@@ -105,10 +105,10 @@ export function createServer(config: AppConfig) {
     await connectPrismaWithRetry(prisma, new Logger('prisma'), 3);
 
     await new Promise<void>((resolve) => {
-      const PORT = process.env.PORT || '8080';
-      server = app.listen(PORT, '0.0.0.0', () => {
+      const PORT = process.env.PORT || 8080;
+      server = app.listen(Number(PORT), '0.0.0.0', () => {
         console.log('Server listening on', PORT);
-        appLogger.info('Server started on port', { port: PORT, host: '0.0.0.0' });
+        appLogger.info('Server started on port', { port: Number(PORT), host: '0.0.0.0' });
         if (config.engineMode === 'paper') {
           runner.start();
         }
