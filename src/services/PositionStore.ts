@@ -1,22 +1,27 @@
-import { DecisionType, PositionStatus } from '@prisma/client';
-import { prisma } from './Db';
+import { PrismaClient } from '@prisma/client';
+import { DecisionType, PositionStatusValue } from '../types';
 
 export class PositionStore {
+  constructor(private prisma: PrismaClient) {}
+
   async getOpenPosition(symbol: string) {
-    return prisma.position.findFirst({ where: { symbol, status: PositionStatus.OPEN } });
+    return this.prisma.position.findFirst({ where: { symbol, status: PositionStatusValue.OPEN as any } });
   }
 
   async upsertPosition(symbol: string, side: DecisionType, qty: number, avgEntry: number) {
     const existing = await this.getOpenPosition(symbol);
     if (existing) {
-      return prisma.position.update({ where: { id: existing.id }, data: { side, qty, avgEntry } });
+      return this.prisma.position.update({ where: { id: existing.id }, data: { side, qty, avgEntry } });
     }
-    return prisma.position.create({ data: { symbol, side, qty, avgEntry } });
+    return this.prisma.position.create({ data: { symbol, side, qty, avgEntry } });
   }
 
   async closePosition(symbol: string) {
     const existing = await this.getOpenPosition(symbol);
     if (!existing) return null;
-    return prisma.position.update({ where: { id: existing.id }, data: { status: PositionStatus.CLOSED, closedAt: new Date() } });
+    return this.prisma.position.update({
+      where: { id: existing.id },
+      data: { status: PositionStatusValue.CLOSED as any, closedAt: new Date() },
+    });
   }
 }
