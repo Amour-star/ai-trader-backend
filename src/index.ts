@@ -1,58 +1,37 @@
-import 'dotenv/config';
-import cors from 'cors';
-import express from 'express';
-import { BinanceMarketData } from './services/BinanceMarketData';
-import { TradeStore } from './services/TradeStore';
-import { PositionStore } from './services/PositionStore';
-import { StrategyCoordinator } from './engine/StrategyCoordinator';
-import { ExecutionEngine } from './engine/ExecutionEngine';
-import { RiskGuards } from './engine/RiskGuards';
-import { EngineRunner } from './engine/EngineRunner';
-import { decisionsRoute, tradesRoute } from './routes/trades';
-import { forceTradeRoute } from './routes/forceTrade';
-import { settingsRoute } from './routes/settings';
-import { statusRoute } from './routes/status';
+import { loadConfig } from './config';
+import { createServer } from './server';
+import { Logger } from './utils/logger';
 
-const app = express();
-app.use(express.json());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? '*' }));
+const logger = new Logger('bootstrap');
 
-const symbol = process.env.ENGINE_SYMBOL ?? 'ETHUSDC';
-let threshold = Number(process.env.CONFIDENCE_THRESHOLD ?? 0.6);
-const port = Number(process.env.BACKEND_PORT ?? 8787);
-let testSignalMode = false;
+async function bootstrap() {
+  const config = loadConfig();
+  const appServer = createServer(config);
 
-const metrics = {
-  lastHeartbeatTs: null,
-  evaluations: 0,
-  signals: 0,
-  tradesExecuted: 0,
-};
+  process.on('uncaughtException', (error) => {
+    logger.error('uncaughtException', { error: error.message, stack: error.stack });
+  });
 
-const marketData = new BinanceMarketData();
-const tradeStore = new TradeStore();
-const positionStore = new PositionStore();
-const execution = new ExecutionEngine(tradeStore, positionStore);
-const strategy = new StrategyCoordinator();
-const risk = new RiskGuards(positionStore);
-const runner = new EngineRunner(symbol, () => threshold, marketData, strategy, tradeStore, execution, risk, metrics, () => testSignalMode);
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+    });
+  });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/status', statusRoute(metrics, symbol));
-app.get('/api/trades', tradesRoute(tradeStore));
-app.get('/api/decisions', decisionsRoute(tradeStore));
-app.post('/api/force-trade', forceTradeRoute(marketData, tradeStore, execution));
-app.post('/api/settings', async (req, res) => {
-  const result = await settingsRoute(req, res);
-  if (typeof req.body?.confidenceThreshold === 'number') threshold = req.body.confidenceThreshold;
-  return result;
-});
-app.post('/api/test-signal-mode', (req, res) => {
-  testSignalMode = Boolean(req.body?.enabled);
-  res.json({ enabled: testSignalMode });
-});
+  process.on('SIGINT', () => {
+    void appServer.shutdown('SIGINT').finally(() => process.exit(0));
+  });
 
-app.listen(port, () => {
-  console.log(`Backend engine listening on :${port}`);
-  runner.start();
+  process.on('SIGTERM', () => {
+    void appServer.shutdown('SIGTERM').finally(() => process.exit(0));
+  });
+
+  await appServer.start();
+}
+
+void bootstrap().catch((error) => {
+  logger.error('Fatal startup error', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  process.exit(1);
 });

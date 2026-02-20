@@ -1,22 +1,17 @@
 import { Request, Response } from 'express';
-import { prisma } from '../services/Db';
-import { EngineMetrics } from '../engine/EngineRunner';
+import { EngineRunner } from '../engine/EngineRunner';
+import { TradeStore } from '../services/TradeStore';
 
-export const statusRoute = (metrics: EngineMetrics, symbol: string) => async (_req: Request, res: Response) => {
-  const state = await prisma.engineState.upsert({
-    where: { id: 'singleton' },
-    update: {},
-    create: { id: 'singleton' },
-  });
+export function statusRoute(runner: EngineRunner, tradeStore: TradeStore) {
+  return async (_req: Request, res: Response) => {
+    await tradeStore.testConnection();
+    const metrics = runner.getMetrics();
 
-  res.json({
-    running: true,
-    lastHeartbeatTs: metrics.lastHeartbeatTs,
-    selectedSymbol: symbol,
-    evaluationsCount: metrics.evaluations,
-    signalsCount: metrics.signals,
-    tradesExecutedCount: metrics.tradesExecuted,
-    autoPaper: state.autoPaper,
-    confidenceThreshold: state.confidenceThreshold,
-  });
-};
+    return res.json({
+      status: 'ok',
+      engine: metrics.isRunning ? 'running' : 'stopped',
+      db: 'connected',
+      timestamp: new Date().toISOString(),
+    });
+  };
+}
