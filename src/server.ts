@@ -8,7 +8,6 @@ import { RiskGuards } from './engine/RiskGuards';
 import { StrategyCoordinator } from './engine/StrategyCoordinator';
 import { forceTradeRoute } from './routes/forceTrade';
 import { settingsRoute } from './routes/settings';
-import { statusRoute } from './routes/status';
 import { decisionsRoute, tradesRoute } from './routes/trades';
 import { BinanceMarketData } from './services/BinanceMarketData';
 import { connectPrismaWithRetry, createPrismaClient } from './services/Db';
@@ -45,16 +44,13 @@ export function createServer(config: AppConfig) {
   );
 
   const app = express();
-  let server: Server | null = null;
-  let hasStarted = false;
-
   const allowedOrigins = [
     'https://ku-coin-ai-trader-pro.vercel.app',
     'http://localhost:3000',
   ];
 
-  const corsOptions = {
-    origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+  app.use(cors({
+    origin(origin, callback) {
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
@@ -64,22 +60,31 @@ export function createServer(config: AppConfig) {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-  };
+  }));
 
-  app.use(express.json());
+  app.options('*', cors());
+
   app.use((req, _res, next) => {
-    console.log('Origin:', req.headers.origin);
+    console.log('Incoming:', req.method, req.url, 'Origin:', req.headers.origin);
     next();
   });
-  app.use(cors(corsOptions));
-  app.options('*', cors());
+
+  app.use(express.json());
+
+  let server: Server | null = null;
+  let hasStarted = false;
 
   appLogger.info('CORS configured for:', allowedOrigins);
 
   app.get('/', (_req, res) => {
     res.json({ status: 'ok', service: 'ai-trader-backend' });
   });
-  app.get('/api/status', asyncHandler(statusRoute(runner, tradeStore)));
+  app.get('/api/status', (_req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'ai-trader-backend',
+    });
+  });
   app.get('/api/trades', asyncHandler(tradesRoute(tradeStore)));
   app.get('/api/decisions', asyncHandler(decisionsRoute(tradeStore)));
   app.post('/api/force-trade', asyncHandler(forceTradeRoute(marketData, tradeStore, execution)));
