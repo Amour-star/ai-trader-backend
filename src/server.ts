@@ -44,25 +44,26 @@ export function createServer(config: AppConfig) {
   );
 
   const app = express();
-  const allowedOrigins = [
-    'https://ku-coin-ai-trader-pro.vercel.app',
-    'http://localhost:3000',
-  ];
+  const allowedOrigins = config.corsOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
-  app.use(cors({
+  const corsOptions: cors.CorsOptions = {
     origin(origin, callback) {
       if (!origin) return callback(null, true);
+      if (allowedOrigins.includes('*')) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+        return callback(null, origin);
       }
-      return callback(new Error('Not allowed by CORS'));
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-  }));
+  };
 
-  app.options('*', cors());
+  app.use(cors(corsOptions));
 
   app.use((req, _res, next) => {
     console.log('Incoming:', req.method, req.url, 'Origin:', req.headers.origin);
