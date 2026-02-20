@@ -1,13 +1,12 @@
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { Server } from 'node:http';
-import { AppConfig, sanitizedConfig } from './config';
+import { AppConfig } from './config';
 import { EngineRunner } from './engine/EngineRunner';
 import { ExecutionEngine } from './engine/ExecutionEngine';
 import { RiskGuards } from './engine/RiskGuards';
 import { StrategyCoordinator } from './engine/StrategyCoordinator';
 import { forceTradeRoute } from './routes/forceTrade';
-import { healthRoute } from './routes/health';
 import { settingsRoute } from './routes/settings';
 import { statusRoute } from './routes/status';
 import { decisionsRoute, tradesRoute } from './routes/trades';
@@ -46,17 +45,41 @@ export function createServer(config: AppConfig) {
   );
 
   const app = express();
-  const startedAt = Date.now();
   let server: Server | null = null;
+  let hasStarted = false;
+
+  const allowedOrigins = [
+    'https://ku-coin-ai-trader-pro.vercel.app',
+    'http://localhost:3000',
+  ];
+
+  const corsOptions = {
+    origin(origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  };
 
   app.use(express.json());
-  app.use(cors({ origin: config.corsOrigin || '*', credentials: true }));
+  app.use((req, _res, next) => {
+    console.log('Origin:', req.headers.origin);
+    next();
+  });
+  app.use(cors(corsOptions));
+  app.options('*', cors());
+
+  appLogger.info('CORS configured for:', allowedOrigins);
 
   app.get('/', (_req, res) => {
     res.json({ status: 'ok', service: 'ai-trader-backend' });
   });
-  app.get('/health', asyncHandler(healthRoute(runner, tradeStore, startedAt)));
-  app.get('/api/status', asyncHandler(statusRoute(config, () => threshold)));
+  app.get('/api/status', asyncHandler(statusRoute(runner, tradeStore)));
   app.get('/api/trades', asyncHandler(tradesRoute(tradeStore)));
   app.get('/api/decisions', asyncHandler(decisionsRoute(tradeStore)));
   app.post('/api/force-trade', asyncHandler(forceTradeRoute(marketData, tradeStore, execution)));
@@ -74,18 +97,22 @@ export function createServer(config: AppConfig) {
   });
 
   async function start() {
+    if (hasStarted) {
+      appLogger.warn('Start ignored because server already started');
+      return { app, server: server as Server, runner, prisma };
+    }
+
     await connectPrismaWithRetry(prisma, new Logger('prisma'), 3);
 
     await new Promise<void>((resolve) => {
-      const port = Number(process.env.PORT) || 8080;
-      server = app.listen(port, '0.0.0.0', () => {
-        appLogger.info('Server started', { ...sanitizedConfig(config), port, host: '0.0.0.0' });
+      const PORT = process.env.PORT || '8080';
+      server = app.listen(PORT, '0.0.0.0', () => {
+        console.log('Server listening on', PORT);
+        appLogger.info('Server started on port', { port: PORT, host: '0.0.0.0' });
         if (config.engineMode === 'paper') {
           runner.start();
-          appLogger.info('Engine started', { mode: config.engineMode });
-        } else {
-          appLogger.warn('Engine disabled by config', { mode: config.engineMode });
         }
+        hasStarted = true;
         resolve();
       });
     });
@@ -110,6 +137,7 @@ export function createServer(config: AppConfig) {
     }
 
     await prisma.$disconnect();
+    hasStarted = false;
     appLogger.info('Shutdown complete');
   }
 

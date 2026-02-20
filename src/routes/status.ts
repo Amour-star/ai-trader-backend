@@ -1,13 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
-import { AppConfig } from '../config';
+import { EngineRunner } from '../engine/EngineRunner';
+import { TradeStore } from '../services/TradeStore';
+
+export const statusRoute = (runner: EngineRunner, tradeStore: TradeStore) => async (_req: Request, res: Response) => {
+  await tradeStore.testConnection();
+  const metrics = runner.getMetrics();
 
 export const statusRoute = (config: AppConfig, getThreshold: () => number) => async (_req: Request, res: Response) => {
   res.json({
-    status: 'running',
-    engineMode: config.engineMode,
-    symbol: config.symbol,
-    confidenceThreshold: getThreshold(),
-    timestamp: new Date().toISOString(),
+    status: 'ok',
+    engine: metrics.isRunning ? 'running' : 'stopped',
+    db: 'connected',
+    timestamp: new Date(),
   });
 };
