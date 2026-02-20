@@ -1,7 +1,7 @@
+import { PrismaClient } from '@prisma/client';
 import { Request, Response } from 'express';
-import { prisma } from '../services/Db';
 
-export const settingsRoute = async (req: Request, res: Response) => {
+export const settingsRoute = (prisma: PrismaClient, onThresholdUpdated: (threshold: number) => void) => async (req: Request, res: Response) => {
   const { autoPaper, confidenceThreshold } = req.body as { autoPaper?: boolean; confidenceThreshold?: number };
 
   const state = await prisma.engineState.upsert({
@@ -17,5 +17,6 @@ export const settingsRoute = async (req: Request, res: Response) => {
     },
   });
 
+  if (typeof confidenceThreshold === 'number') onThresholdUpdated(confidenceThreshold);
   res.json(state);
 };
